@@ -26,6 +26,8 @@
   --c-cocina:#dcefe6; --c-cocina-s:#4f9474;
   --c-gatos:#fbe1d6; --c-gatos-s:#d0703f;
   --c-otros:#e9e9e6; --c-otros-s:#85857e;
+  --c-oficina:#e2eedb; --c-oficina-s:#6c8f4e;
+  --c-gym:#f6dfe7; --c-gym-s:#b45a7c;
   --display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -38,6 +40,7 @@
     --c-sala:#24344a; --c-sala-s:#7ea6d4; --c-comedor:#3b3022; --c-comedor-s:#d2a46a;
     --c-recamara:#302a42; --c-recamara-s:#a896d4; --c-cocina:#203a30; --c-cocina-s:#76c19c;
     --c-gatos:#43291f; --c-gatos-s:#ec9467; --c-otros:#2b2c2e; --c-otros-s:#a4a49d;
+    --c-oficina:#26341f; --c-oficina-s:#9cc27c; --c-gym:#3d2230; --c-gym-s:#e08aac;
     color-scheme:dark;
   }
 }
@@ -47,6 +50,7 @@
   --c-sala:#24344a; --c-sala-s:#7ea6d4; --c-comedor:#3b3022; --c-comedor-s:#d2a46a;
   --c-recamara:#302a42; --c-recamara-s:#a896d4; --c-cocina:#203a30; --c-cocina-s:#76c19c;
   --c-gatos:#43291f; --c-gatos-s:#ec9467; --c-otros:#2b2c2e; --c-otros-s:#a4a49d;
+  --c-oficina:#26341f; --c-oficina-s:#9cc27c; --c-gym:#3d2230; --c-gym-s:#e08aac;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -94,11 +98,24 @@ input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .lg-door{width:12px;height:12px;border:1.5px solid var(--muted);border-radius:0 12px 0 0;border-left:0;border-bottom:0}
 .lg-patio{width:12px;height:12px;background:var(--patio);border:1px solid var(--wall)}
 .lg-unk{width:12px;height:12px;background:var(--unknown);border:1.5px dashed var(--wall)}
+#plan{cursor:grab}
+.selbar{position:sticky;bottom:10px;left:10px;z-index:2;margin:0 10px 10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 8px;background:var(--sheet);border:1px solid var(--accent);border-radius:8px;width:max-content;max-width:calc(100% - 20px)}
+.selbar[hidden]{display:none}
+.selbar span{font-weight:600;font-size:13px;margin-right:4px}
 @media (max-width:760px){
-  main{grid-template-columns:1fr;grid-template-rows:minmax(420px,60vh) auto}
-  aside{order:2;border-right:0;border-top:1px solid var(--line)}
-  .planwrap{order:1}
+  html,body{height:auto}
+  body{display:block}
+  header{padding:12px 14px 8px}
+  h1{font-size:19px}
+  .note{font-size:12px}
+  main{display:flex;flex-direction:column}
+  .planwrap{order:1;height:62vh;min-height:340px;border-bottom:1px solid var(--line)}
+  aside{order:2;border-right:0;overflow:visible;padding:14px}
+  .chip{padding:6px 11px;font-size:13px}
+  .btn{padding:8px 12px}
+  .tools .btn{min-width:38px;min-height:36px}
 }
+@media (hover:none){ .kbd{display:none} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -146,7 +163,7 @@ input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
         <span><i class="lg-patio"></i>Patio</span>
         <span><i class="lg-unk"></i>Por confirmar</span>
       </div>
-      <p class="hint">Teclado: flechas mueven 5&nbsp;cm (con Shift, 1&nbsp;cm), R gira y Supr elimina.</p>
+      <p class="hint kbd">Teclado: flechas mueven 5&nbsp;cm (con Shift, 1&nbsp;cm), R gira y Supr elimina.</p>
     </section>
 
     <section class="group">
@@ -163,85 +180,91 @@ input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
       <button class="btn" id="zIn" aria-label="Acercar">+</button>
     </div>
     <svg id="plan" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="selbar" id="selbar" hidden>
+      <span id="sbName"></span>
+      <button class="btn" id="sbRot">Girar</button>
+      <button class="btn" id="sbDup">Duplicar</button>
+      <button class="btn danger" id="sbDel">Eliminar</button>
+    </div>
   </div>
 </main>
 
 <script>
 (function(){
-const KEY = 'croquis-depto-v3';
+const KEY = 'croquis-depto-v6';
 const SNAP = 5;
 
 const CATS = {
   sala:{name:'Sala'}, comedor:{name:'Comedor'}, recamara:{name:'Recámara'},
-  cocina:{name:'Cocina y lavado'}, gatos:{name:'Gatos y robot'}, otros:{name:'Otros'}
+  oficina:{name:'Oficina'}, gym:{name:'Gym'}, cocina:{name:'Cocina y lavado'}, gatos:{name:'Gatos y robot'}, otros:{name:'Otros'}
 };
 const PALETTE = [
   ['sala','Sofá 3 plazas',210,90],['sala','Sofá 2 plazas',160,90],['sala','Sofá en L',260,160],
   ['sala','Sillón',85,85],['sala','Mesa de centro',110,60],['sala','Mueble TV',180,45],['sala','Librero',80,30],
   ['comedor','Mesa 4 personas',120,80],['comedor','Mesa 6 personas',180,90],['comedor','Mesa redonda',100,100],['comedor','Silla',45,50],
   ['recamara','Cama individual',100,190],['recamara','Cama matrimonial',140,190],['recamara','Cama queen',160,200],['recamara','Cama king',200,200],
-  ['recamara','Buró',50,40],['recamara','Cómoda',100,50],['recamara','Ropero',120,60],['recamara','Escritorio',120,60],['recamara','Silla escritorio',60,60],
+  ['recamara','Buró',50,40],['recamara','Cómoda',100,50],['recamara','Ropero',120,60],
+  ['oficina','Escritorio',140,70],['oficina','Escritorio en L',160,140],['oficina','Silla de escritorio',60,60],['oficina','Librero',80,30],['oficina','Sillón de lectura',85,85],['oficina','Archivero',45,60],
+  ['gym','Tapete de hule',200,150],['gym','Tapete de yoga',180,60],['gym','Bicicleta fija',60,120],['gym','Caminadora',80,180],['gym','Banco de pesas',120,50],['gym','Rack de pesas',120,60],
   ['cocina','Refrigerador',75,70],['cocina','Estufa',76,60],['cocina','Lavadora',60,65],['cocina','Secadora',60,65],['cocina','Alacena',80,40],['cocina','Mesa auxiliar',100,60],
   ['gatos','Rascador',60,60],['gatos','Torre para gatos',80,60],['gatos','Arenero',55,45],['gatos','Platos de comida y agua',45,30],['gatos','Cama de gato',50,50],['gatos','Base del robot',45,45],
   ['otros','Planta',40,40],['otros','Bicicleta',180,60],['otros','Zapatera',80,35]
 ];
 
+// Muebles ya en su lugar (plano con la sala abajo y la oficina arriba)
+const ITEMS = [
+  {cat:'sala',name:'Sofá 3 plazas',w:210,h:90,x:200,y:1190,r:0},
+  {cat:'sala',name:'Mesa de centro',w:110,h:60,x:250,y:1330,r:0},
+  {cat:'sala',name:'Mueble TV',w:180,h:45,x:180,y:1535,r:0},
+  {cat:'comedor',name:'Mesa 4 personas',w:120,h:80,x:470,y:1290,r:0},
+  {cat:'gatos',name:'Rascador',w:60,h:60,x:540,y:1500,r:0},
+  {cat:'gatos',name:'Base del robot',w:45,h:45,x:560,y:1140,r:0},
+  {cat:'cocina',name:'Estufa',w:76,h:60,x:916,y:1095,r:0},
+  {cat:'cocina',name:'Refrigerador',w:75,h:70,x:920,y:1175,r:0},
+  {cat:'otros',name:'Clóset',w:120,h:50,x:780,y:1565,r:0},
+  {cat:'gatos',name:'Platos de comida y agua',w:45,h:30,x:760,y:1290,r:0},
+  {cat:'cocina',name:'Lavadora',w:60,h:65,x:840,y:920,r:0},
+  {cat:'gatos',name:'Arenero',w:55,h:45,x:640,y:945,r:0},
+  {cat:'gatos',name:'Arenero',w:55,h:45,x:705,y:945,r:0},
+  {cat:'gym',name:'Tapete de yoga',w:180,h:60,x:195,y:790,r:0},
+  {cat:'gym',name:'Bicicleta fija',w:60,h:120,x:410,y:780,r:0},
+  {cat:'gym',name:'Rack de pesas',w:120,h:60,x:195,y:940,r:0},
+  {cat:'recamara',name:'Cama queen',w:160,h:200,x:180,y:500,r:1},
+  {cat:'recamara',name:'Buró',w:50,h:40,x:180,y:455,r:0},
+  {cat:'oficina',name:'Escritorio',w:140,h:70,x:680,y:90,r:0},
+  {cat:'oficina',name:'Silla de escritorio',w:60,h:60,x:720,y:170,r:0},
+  {cat:'oficina',name:'Librero',w:80,h:30,x:425,y:110,r:1},
+  {cat:'oficina',name:'Sillón de lectura',w:85,h:85,x:460,y:250,r:0},
+  {cat:'gatos',name:'Cama de gato',w:50,h:50,x:620,y:300,r:0},
+  {cat:'gatos',name:'Arenero',w:55,h:45,x:1080,y:330,r:0}
+];
+
 function defaults(){
-  return flipV({
+  return {
     rooms:[
-      {id:'sala',name:'Sala-comedor',kind:'room',x:170,y:0,w:450,h:560,
-        windows:[{wall:'top',off:15,len:180},{wall:'top',off:255,len:180}],doors:[]},
-      {id:'entrada',name:'Entrada',kind:'room',x:620,y:0,w:220,h:280,
-        windows:[],doors:[{wall:'right',off:40,len:95}]},
-      {id:'cocina',name:'Cocina',kind:'room',x:620,y:280,w:300,h:330,
-        windows:[{wall:'bottom',off:70,len:160}],doors:[{wall:'left',off:245,len:80}]},
-      {id:'pasillo',name:'Pasillo',kind:'hall',x:500,y:560,w:120,h:660,windows:[],doors:[]},
-      {id:'lavado',name:'Patio de lavado',kind:'patio',x:620,y:610,w:300,h:260,
+      {id:'sala',name:'Sala-comedor',kind:'room',x:170,y:1060,w:450,h:560,
+        windows:[{wall:'bottom',off:15,len:180},{wall:'bottom',off:255,len:180}],
+        doors:[{wall:'top',off:330,len:120,open:true},{wall:'right',off:410,len:150,open:true}]},
+      {id:'entrada',name:'Entrada',kind:'hall',x:620,y:1470,w:380,h:150,
+        windows:[],doors:[{wall:'left',off:0,len:150,open:true},{wall:'right',off:25,len:95}]},
+      {id:'cocina',name:'Cocina',kind:'room',x:620,y:1010,w:380,h:460,
+        windows:[{wall:'top',off:70,len:160}],doors:[{wall:'left',off:55,len:85},{wall:'right',off:365,len:85}]},
+      {id:'pasillo',name:'Pasillo',kind:'hall',x:500,y:400,w:120,h:660,windows:[],
+        doors:[{wall:'bottom',off:0,len:120,open:true}]},
+      {id:'lavado',name:'Patio de lavado',kind:'patio',x:620,y:750,w:300,h:260,
         windows:[],doors:[{wall:'left',off:90,len:80}]},
-      {id:'c1',name:'Cuarto del pasillo',kind:'room',x:170,y:600,w:330,h:340,
-        windows:[{wall:'left',off:70,len:200}],doors:[{wall:'right',off:40,len:80}]},
-      {id:'c2',name:'Cuarto del fondo',kind:'room',x:170,y:940,w:330,h:280,
-        windows:[{wall:'left',off:60,len:160}],doors:[{wall:'right',off:180,len:80}]},
-      {id:'bano',name:'Baño',kind:'room',x:620,y:870,w:300,h:350,
-        windows:[],doors:[{wall:'left',off:60,len:70}]},
-      {id:'recamara',name:'Recámara principal',kind:'room',x:420,y:1220,w:420,h:400,
-        windows:[{wall:'right',off:160,len:200}],doors:[{wall:'top',off:90,len:85},{wall:'right',off:50,len:80}]},
-      {id:'terraza',name:'Terraza',kind:'patio',x:840,y:1220,w:320,h:330,windows:[],doors:[]}
+      {id:'c1',name:'Gym',kind:'room',x:170,y:680,w:330,h:380,
+        windows:[{wall:'left',off:90,len:200}],doors:[{wall:'right',off:240,len:80}]},
+      {id:'c2',name:'Recámara',kind:'room',x:170,y:400,w:330,h:280,
+        windows:[{wall:'left',off:60,len:160}],doors:[{wall:'right',off:20,len:80}]},
+      {id:'bano',name:'Baño',kind:'room',x:620,y:400,w:300,h:350,
+        windows:[],doors:[{wall:'left',off:220,len:70}]},
+      {id:'recamara',name:'Oficina',kind:'room',x:420,y:0,w:420,h:400,
+        windows:[{wall:'right',off:40,len:200}],doors:[{wall:'bottom',off:90,len:85},{wall:'right',off:270,len:80}]},
+      {id:'terraza',name:'Terraza',kind:'patio',x:840,y:70,w:320,h:330,windows:[],doors:[]}
     ],
-    items:[
-      {cat:'sala',name:'Sofá 3 plazas',w:210,h:90,x:200,y:440,r:0},
-      {cat:'sala',name:'Mesa de centro',w:110,h:60,x:250,y:330,r:0},
-      {cat:'sala',name:'Mueble TV',w:180,h:45,x:215,y:40,r:0},
-      {cat:'comedor',name:'Mesa 4 personas',w:120,h:80,x:470,y:250,r:0},
-      {cat:'gatos',name:'Rascador',w:60,h:60,x:540,y:40,r:0},
-      {cat:'gatos',name:'Base del robot',w:45,h:45,x:550,y:490,r:0},
-      {cat:'cocina',name:'Estufa',w:76,h:60,x:640,y:460,r:0},
-      {cat:'cocina',name:'Refrigerador',w:75,h:70,x:830,y:300,r:0},
-      {cat:'gatos',name:'Platos de comida y agua',w:45,h:30,x:860,y:560,r:0},
-      {cat:'cocina',name:'Lavadora',w:60,h:65,x:840,y:785,r:0},
-      {cat:'recamara',name:'Cama queen',w:160,h:200,x:550,y:1380,r:0},
-      {cat:'recamara',name:'Buró',w:50,h:40,x:495,y:1380,r:0},
-      {cat:'recamara',name:'Buró',w:50,h:40,x:715,y:1380,r:0},
-      {cat:'gatos',name:'Arenero',w:55,h:45,x:1080,y:1480,r:0}
-    ]
-  });
-}
-// Espejo arriba-abajo: entrada y sala quedan abajo, recámara arriba
-function flipV(d){
-  const H = Math.max(...d.rooms.map(r=>r.y+r.h));
-  const sw = {top:'bottom',bottom:'top',left:'left',right:'right'};
-  d.rooms.forEach(r=>{
-    r.y = H - r.y - r.h;
-    [...(r.windows||[]),...(r.doors||[])].forEach(o=>{
-      if(o.wall==='left'||o.wall==='right') o.off = r.h - o.off - o.len;
-      o.wall = sw[o.wall];
-    });
-  });
-  d.items.forEach(it=>{ const hh = it.r?it.w:it.h; it.y = H - it.y - hh; });
-  // reacomodo para no tapar los nombres de los cuartos
-  const ny = {'Sofá 3 plazas':1190,'Mesa de centro':1330,'Cama queen':110,'Buró':110,'Arenero':330,'Lavadora':920};
-  d.items.forEach(it=>{ if(ny[it.name]!=null) it.y = ny[it.name]; });
-  return d;
+    items: ITEMS.map(o=>({...o}))
+  };
 }
 
 let state;
@@ -325,6 +348,7 @@ function render(){
       const hx=g.sx+g.ax*d.off, hy=g.sy+g.ay*d.off;
       const dx=hx+g.ax*d.len, dy=hy+g.ay*d.len;
       const lx=hx+g.nx*d.len, ly=hy+g.ny*d.len;
+      if(d.open){ s += `<line x1="${hx}" y1="${hy}" x2="${dx}" y2="${dy}" stroke="var(--sheet)" stroke-width="14"/>`; return; }
       const cross=(lx-hx)*(dy-hy)-(ly-hy)*(dx-hx);
       const sweep = cross>0?1:0;
       s += `<line x1="${hx}" y1="${hy}" x2="${dx}" y2="${dy}" stroke="var(--sheet)" stroke-width="14"/>`;
@@ -395,7 +419,14 @@ function renderStats(){
   $('stats').textContent = `Total ≈ ${f(inside+out)} m² (el depto mide 110) · interior ≈ ${f(inside)} · patios ≈ ${f(out)} · ${state.items.length} muebles`;
 }
 
-function renderPanel(){
+function renderPanel(){ renderPanelInner(); updateSelbar(); }
+function updateSelbar(){
+  const bar = $('selbar');
+  const it = sel && sel.type==='f' ? findItem(sel.id) : null;
+  bar.hidden = !it;
+  if(it) $('sbName').textContent = `${it.name} · ${it.w}×${it.h}`;
+}
+function renderPanelInner(){
   const p = $('selPanel');
   if(!sel){ p.innerHTML = `<p class="hint">${mode==='f'?'Toca un mueble para seleccionarlo, o agrega uno de la lista.':'Toca un cuarto para cambiar su nombre o sus medidas.'}</p>`; return; }
   if(sel.type==='f'){
@@ -416,7 +447,7 @@ function renderPanel(){
     $('sW').onchange = e=>{ it.w=Math.max(5,+e.target.value||it.w); render(); save(); };
     $('sH').onchange = e=>{ it.h=Math.max(5,+e.target.value||it.h); render(); save(); };
     $('sRot').onclick = ()=>rotateSel();
-    $('sDup').onclick = ()=>{ const c={...it,id:'f'+(uid++),x:it.x+20,y:it.y+20}; state.items.push(c); sel={type:'f',id:c.id}; render(); renderPanel(); save(); };
+    $('sDup').onclick = ()=>dupSel();
     $('sDel').onclick = ()=>deleteSel();
   } else {
     const r = findRoom(sel.id); if(!r){ sel=null; return renderPanel(); }
@@ -455,6 +486,15 @@ function rotateSel(){
   it.x=snap(cx-nv.w/2); it.y=snap(cy-nv.h/2);
   render(); save();
 }
+function dupSel(){
+  if(!sel||sel.type!=='f') return;
+  const it=findItem(sel.id); if(!it) return;
+  const c={...it,id:'f'+(uid++),x:it.x+20,y:it.y+20};
+  state.items.push(c); sel={type:'f',id:c.id}; render(); renderPanel(); save();
+}
+$('sbRot').onclick=()=>{ rotateSel(); updateSelbar(); };
+$('sbDup').onclick=()=>dupSel();
+$('sbDel').onclick=()=>deleteSel();
 function deleteSel(){
   if(!sel) return;
   if(sel.type==='f') state.items = state.items.filter(i=>i.id!==sel.id);
@@ -538,7 +578,7 @@ function toSvg(e){
 }
 svg.addEventListener('pointerdown',e=>{
   const t=e.target.closest('[data-type]');
-  if(!t){ if(sel){ sel=null; render(); renderPanel(); } return; }
+  if(!t){ drag={type:'pan',sx:e.clientX,sy:e.clientY,sl:wrap.scrollLeft,st:wrap.scrollTop,moved:false}; svg.setPointerCapture(e.pointerId); return; }
   const type=t.dataset.type, id=t.dataset.id, p=toSvg(e);
   if(type==='f'){
     const it=findItem(id); sel={type:'f',id};
@@ -556,13 +596,21 @@ svg.addEventListener('pointerdown',e=>{
 });
 svg.addEventListener('pointermove',e=>{
   if(!drag) return;
+  if(drag.type==='pan'){
+    const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
+    if(Math.abs(dx)+Math.abs(dy)>4) drag.moved=true;
+    wrap.scrollLeft=drag.sl-dx; wrap.scrollTop=drag.st-dy;
+    return;
+  }
   const p=toSvg(e);
   if(drag.type==='f'){ const it=findItem(drag.id); it.x=snap(p.x-drag.ox); it.y=snap(p.y-drag.oy); }
   else if(drag.type==='r'){ const r=findRoom(drag.id); r.x=snap(p.x-drag.ox,10); r.y=snap(p.y-drag.oy,10); }
   else { const r=findRoom(drag.id); r.w=Math.max(50,snap(p.x-drag.ox-r.x,10)); r.h=Math.max(50,snap(p.y-drag.oy-r.y,10)); clampOpenings(r); }
   render();
 });
-function endDrag(){ if(!drag) return; const was=drag; drag=null; render(); if(was.type!=='f') renderPanel(); else renderPanel(); save(); }
+function endDrag(){ if(!drag) return; const was=drag; drag=null;
+  if(was.type==='pan'){ if(!was.moved && sel){ sel=null; render(); renderPanel(); } return; }
+  render(); if(was.type!=='f') renderPanel(); else renderPanel(); save(); }
 svg.addEventListener('pointerup',endDrag);
 svg.addEventListener('pointercancel',endDrag);
 
